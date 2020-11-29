@@ -497,6 +497,27 @@ static void msm_gpio_free(struct gpio_chip *chip, unsigned offset)
 #ifdef CONFIG_DEBUG_FS
 #include <linux/seq_file.h>
 
+#ifdef CONFIG_FEATURE_ZTEMT_SKIP_TZ_MASK
+static bool is_tz_mask(unsigned gpio)
+{
+/* gpio 0~3 and 135~138 is protected by TZ,so we must skip it*/
+	switch(gpio){
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+		case 135:
+		case 136:
+		case 137:
+		case 138:
+			return true;
+			break;
+		default:
+			return false;
+	}
+}
+#endif
+
 static void msm_gpio_dbg_show_one(struct seq_file *s,
 				  struct pinctrl_dev *pctldev,
 				  struct gpio_chip *chip,
@@ -519,6 +540,13 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	};
 
 	g = &pctrl->soc->groups[offset];
+#ifdef CONFIG_FEATURE_ZTEMT_SKIP_TZ_MASK
+	if(is_tz_mask(offset)){
+		printk(KERN_ERR"WARN: GPIO%d is protected by TZ,skip!!\n",offset);
+		seq_printf(s, " %-8s: protected by TZ", g->name);
+		return;
+	}
+#endif
 	ctl_reg = readl(pctrl->regs + g->ctl_reg);
 
 	is_out = !!(ctl_reg & BIT(g->oe_bit));
@@ -872,11 +900,24 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 		return ret;
 	}
 
-	ret = gpiochip_add_pin_range(&pctrl->chip, dev_name(pctrl->dev), 0, 0, chip->ngpio);
-	if (ret) {
-		dev_err(pctrl->dev, "Failed to add pin range\n");
-		gpiochip_remove(&pctrl->chip);
-		return ret;
+	/*
+	 * For DeviceTree-supported systems, the gpio core checks the
+	 * pinctrl's device node for the "gpio-ranges" property.
+	 * If it is present, it takes care of adding the pin ranges
+	 * for the driver. In this case the driver can skip ahead.
+	 *
+	 * In order to remain compatible with older, existing DeviceTree
+	 * files which don't set the "gpio-ranges" property or systems that
+	 * utilize ACPI the driver has to call gpiochip_add_pin_range().
+	 */
+	if (!of_property_read_bool(pctrl->dev->of_node, "gpio-ranges")) {
+		ret = gpiochip_add_pin_range(&pctrl->chip,
+			dev_name(pctrl->dev), 0, 0, chip->ngpio);
+		if (ret) {
+			dev_err(pctrl->dev, "Failed to add pin range\n");
+			gpiochip_remove(&pctrl->chip);
+			return ret;
+		}
 	}
 
 	ret = gpiochip_irqchip_add(chip,

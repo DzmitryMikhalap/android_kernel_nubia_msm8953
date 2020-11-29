@@ -48,7 +48,9 @@
 #define MSM_EEPROM_MEMORY_MAP_MAX_SIZE  80
 #define MSM_EEPROM_MAX_MEM_MAP_CNT      8
 
+#if !defined(CONFIG_MACH_NUBIA_NX551J) && !defined(CONFIG_MACH_NUBIA_NX549J)
 #define MSM_SENSOR_BYPASS_VIDEO_NODE    1
+#endif
 
 enum msm_sensor_camera_id_t {
 	CAMERA_0,
@@ -191,6 +193,12 @@ enum msm_flash_cfg_type_t {
 	CFG_FLASH_OFF,
 	CFG_FLASH_LOW,
 	CFG_FLASH_HIGH,
+    //ZTEMT: added by congshan for front camera flash start
+	CFG_LCD_BKL_NORM,
+	CFG_LCD_BKL_LOW,
+	CFG_LCD_BKL_HIGH,
+	CFG_LCD_BKL_SET,
+	//ZTEMT: added by congshan for front camera flash end
 };
 
 enum msm_ir_led_cfg_type_t {
@@ -251,6 +259,20 @@ struct msm_sensor_i2c_sync_params {
 	unsigned short delay;
 };
 
+/*ZTEMT: fengxun add for AL3200--------Start*/
+struct msm_camera_spi_reg_setting{
+	uint16_t opcode;
+	uint32_t size;
+	uint8_t *param;
+};
+
+struct msm_camera_spi_reg_setting32{
+	uint16_t opcode;
+	uint32_t size;
+	uint32_t param;
+};
+/*ZTEMT: fengxun add for AL3200--------End*/
+
 struct msm_camera_reg_settings_t {
 	uint16_t reg_addr;
 	enum msm_camera_i2c_reg_addr_type addr_type;
@@ -302,7 +324,9 @@ struct msm_camera_sensor_slave_info {
 	unsigned char  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
 	enum msm_sensor_output_format_t output_format;
+#if !defined(CONFIG_MACH_NUBIA_NX551J) && !defined(CONFIG_MACH_NUBIA_NX549J)
 	uint8_t bypass_video_node_creation;
+#endif
 };
 
 struct msm_camera_i2c_reg_array {

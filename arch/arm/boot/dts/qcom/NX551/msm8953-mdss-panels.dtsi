@@ -1,0 +1,57 @@
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../nubia_panel/nubia_panel.dtsi"
+
+&dsi_gvo_rm67195_1080_5p2_cmd{
+       qcom,mdss-dsi-panel-timings-phy-v2 = [
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1A 07 08 05 03 04 a0];
+};
+
+&dsi_gvo_rm67198_1080_5p2_cmd{
+       qcom,mdss-dsi-panel-timings-phy-v2 = [
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1A 07 08 05 03 04 a0];
+};
+
+&dsi_edo_rm67191_1080_5p2_cmd{
+       qcom,mdss-dsi-panel-timings-phy-v2 = [
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 19 08 08 05 03 04 a0];
+};
+
+&dsi_sumsang_s6e3fa3x01_1080_5p2_cmd{
+       qcom,mdss-dsi-panel-timings-phy-v2 = [
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 1F 07 09 05 03 04 a0
+                23 19 08 08 05 03 04 a0];
+};
+
+&soc {
+	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
+		/delete-node/ qcom,panel-supply-entry@2;
+		/delete-node/ qcom,panel-supply-entry@3;
+	};
+};
+

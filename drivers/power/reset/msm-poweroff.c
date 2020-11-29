@@ -38,6 +38,12 @@
 #define EMERGENCY_DLOAD_MAGIC3    0x77777777
 #define EMMC_DLOAD_TYPE		0x2
 
+/* this flag must be the same as in bootable/bootloader/lk/app/aboot/aboot.c */
+#ifdef CONFIG_ZTEMT_PANIC_BOOTMODE
+#define PANIC_HARD_RESET_MODE  0x07
+#define PANIC_MODE                0x77665523
+#endif
+
 #define SCM_IO_DISABLE_PMIC_ARBITER	1
 #define SCM_IO_DEASSERT_PS_HOLD		2
 #define SCM_WDOG_DEBUG_BOOT_PART	0x9
@@ -65,11 +71,23 @@ static int download_mode = 1;
 static const int download_mode;
 #endif
 
+static int in_panic;
+
+static int panic_prep_restart(struct notifier_block *this,
+			      unsigned long event, void *ptr)
+{
+	in_panic = 1;
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panic_blk = {
+	.notifier_call	= panic_prep_restart,
+};
+
 #ifdef CONFIG_MSM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
 #define DL_MODE_PROP "qcom,msm-imem-download_mode"
 
-static int in_panic;
 static void *dload_mode_addr;
 static bool dload_mode_enabled;
 static void *emergency_dload_mode_addr;
@@ -94,17 +112,6 @@ struct reset_attribute {
 
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
-
-static int panic_prep_restart(struct notifier_block *this,
-			      unsigned long event, void *ptr)
-{
-	in_panic = 1;
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block panic_blk = {
-	.notifier_call	= panic_prep_restart,
-};
 
 int scm_set_dload_mode(int arg1, int arg2)
 {
@@ -277,6 +284,10 @@ static void msm_restart_prepare(const char *cmd)
 
 	set_dload_mode(download_mode &&
 			(in_panic || restart_mode == RESTART_DLOAD));
+
+#ifdef CONFIG_ZTEMT_RESTART
+	printk(KERN_EMERG "ztemt: %s:%d: download_mode=%x,in_panic=%x,restart_mode=%x\n",__func__,__LINE__,download_mode,in_panic,restart_mode);
+#endif
 #endif
 
 	if (qpnp_pon_check_hard_reset_stored()) {
@@ -285,12 +296,41 @@ static void msm_restart_prepare(const char *cmd)
 			((cmd != NULL && cmd[0] != '\0') &&
 			!strcmp(cmd, "edl")))
 			need_warm_reset = true;
+
+#ifdef CONFIG_ZTEMT_PANIC_BOOTMODE
+		if (get_dload_mode() || in_panic)
+			need_warm_reset = true;
+
+		printk(KERN_EMERG "ztemt: %s:%d: qpnp_pon_check_hard_reset_stored()\n",__func__,__LINE__);
+#endif
+
 	} else {
+#ifdef CONFIG_ZTEMT_PANIC_BOOTMODE
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0') || in_panic);
+
+#ifdef CONFIG_ZTEMT_CHARGER
+		if((cmd != NULL && cmd[0] != '\0') && !in_panic ){
+			if(!strncmp(cmd, "poweroffchg",11)){
+				need_warm_reset = false;
+			}
+		}
+#endif
+
+#else
 		need_warm_reset = (get_dload_mode() ||
 				((cmd != NULL && cmd[0] != '\0') &&
 				strcmp(cmd, "userrequested")));
+#endif
 	}
 
+#ifdef CONFIG_MSM_PRESERVE_MEM
+	need_warm_reset = true;
+#endif
+
+#ifdef CONFIG_ZTEMT_PANIC_BOOTMODE
+	printk(KERN_EMERG "ztemt: %s:%d: need_warm_reset=%s \n",__func__,__LINE__,need_warm_reset==true?"true":"false");
+#endif
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 	if (need_warm_reset) {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
@@ -336,6 +376,17 @@ static void msm_restart_prepare(const char *cmd)
 			__raw_writel(0x77665501, restart_reason);
 		}
 	}
+
+#ifdef CONFIG_ZTEMT_PANIC_BOOTMODE
+	if (in_panic)
+	{
+		printk(KERN_EMERG "%s:%d: ZTEMT SET PANIC HARD REBOOT REASON\n",__func__,__LINE__);
+		qpnp_pon_set_restart_reason(PANIC_HARD_RESET_MODE);
+
+		printk(KERN_EMERG "%s:%d: ZTEMT SET PANIC REBOOT REASON\n",__func__,__LINE__);
+		__raw_writel(PANIC_MODE, restart_reason);
+	}
+#endif
 
 	flush_cache_all();
 
@@ -496,11 +547,12 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct device_node *np;
 	int ret = 0;
 
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
+
 #ifdef CONFIG_MSM_DLOAD_MODE
 	if (scm_is_call_available(SCM_SVC_BOOT, SCM_DLOAD_CMD) > 0)
 		scm_dload_supported = true;
 
-	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	np = of_find_compatible_node(NULL, NULL, DL_MODE_PROP);
 	if (!np) {
 		pr_err("unable to find DT imem DLOAD mode node\n");

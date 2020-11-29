@@ -56,6 +56,12 @@
 #include "mdss_mdp.h"
 #include "mdp3_ctrl.h"
 
+#include "nubia_disp_preference.h"
+
+
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+#include "mdss_dsi.h"
+#endif
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -279,8 +285,16 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+#endif
 	int bl_lvl;
-
+#ifdef CONFIG_NUBIA_CABC_LOW_BRIGHTNESS
+	int value_tmp;
+	value_tmp = value;
+#endif
 	if (mfd->boot_notification_led) {
 		led_trigger_event(mfd->boot_notification_led, 0);
 		mfd->boot_notification_led = NULL;
@@ -288,7 +302,11 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
-
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	pr_debug("before nubia transe backlight, value = %d",value);
+	value = ctrl_pdata->backlight_curve[value];
+	pr_debug("after nubia transe backlight, value = %d",value);
+#endif
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
@@ -303,6 +321,12 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 		mdss_fb_set_backlight(mfd, bl_lvl);
 		mutex_unlock(&mfd->bl_lock);
 	}
+#ifdef CONFIG_NUBIA_CABC_LOW_BRIGHTNESS
+	if(ctrl_pdata->nubia_mdss_dsi_cabc_low_bl > 0)
+	{
+		brightness_cabc_set(value_tmp);
+	}
+#endif
 }
 
 static struct led_classdev backlight_led = {
@@ -1203,6 +1227,9 @@ static int mdss_fb_probe(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd = NULL;
 	struct mdss_panel_data *pdata;
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+#endif
 	struct fb_info *fbi;
 	int rc;
 	const char *data;
@@ -1213,7 +1240,12 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	pdata = dev_get_platdata(&pdev->dev);
 	if (!pdata)
 		return -EPROBE_DEFER;
-
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+                               panel_data);
+	if (!ctrl_pdata)
+                return -EPROBE_DEFER;
+#endif
 	if (!mdp_instance) {
 		pr_err("mdss mdp resource not initialized yet\n");
 		return -ENODEV;
@@ -1239,6 +1271,11 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	mfd->mdp_fb_page_protection = MDP_FB_PAGE_PROTECTION_WRITECOMBINE;
 
 	mfd->ext_ad_ctrl = -1;
+#ifdef CONFIG_NUBIA_LCD_BACKLIGHT_CURVE
+	pr_debug("nubia before transe backlight mfd->bl_level = %d",mfd->bl_level);
+	mfd->bl_level = ctrl_pdata->backlight_curve[mfd->bl_level];
+	pr_debug("nubia after transe backlight ,mfd->bl_level = %d",mfd->bl_level);
+#endif
 	if (mfd->panel_info && mfd->panel_info->brightness_max > 0)
 		MDSS_BRIGHT_TO_BL(mfd->bl_level, backlight_led.brightness,
 		mfd->panel_info->bl_max, mfd->panel_info->brightness_max);
@@ -1662,6 +1699,11 @@ static void mdss_fb_scale_bl(struct msm_fb_data_type *mfd, u32 *bl_lvl)
 	(*bl_lvl) = temp;
 }
 
+//ZTEMT: added by nubia camera for front camera flash  start
+struct msm_fb_data_type *zte_camera_mfd;
+extern int camera_lcd_bkl_handle(void);
+//ZTEMT: added by nubia camera for front camera flash end
+
 /* must call this function from within mfd->bl_lock */
 void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 {
@@ -1681,6 +1723,7 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	} else {
 		mfd->unset_bl_level = U32_MAX;
 	}
+	zte_camera_mfd = mfd; //ZTEMT: added by nubia camera for front camera flash
 
 	pdata = dev_get_platdata(&mfd->pdev->dev);
 
@@ -1710,6 +1753,7 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 			if (twm_en) {
 				pr_info("TWM Enabled skip backlight update\n");
 			} else {
+				if(!camera_lcd_bkl_handle() || (0 == temp)) //ZTEMT: added by nubia camera for front camera flash
 				pdata->set_backlight(pdata, temp);
 				mfd->bl_level = bkl_lvl;
 				mfd->bl_level_scaled = temp;
@@ -1748,6 +1792,7 @@ void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level_scaled = mfd->unset_bl_level;
 			mfd->allow_bl_update = true;
+			zte_camera_mfd = mfd; //ZTEMT: added by nubia camera for front camera flash
 		}
 	}
 	mutex_unlock(&mfd->bl_lock);
@@ -3377,7 +3422,7 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 	struct mdss_panel_info *pinfo;
 	bool wait_for_finish, wb_change = false;
 	int ret = -EPERM;
-	u32 old_xres, old_yres, old_format;
+	u32 old_xres = 0, old_yres = 0, old_format = 0;
 
 	if (!mfd || (!mfd->op_enable)) {
 		pr_err("mfd is NULL or operation not permitted\n");
@@ -3388,33 +3433,33 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 		!((mfd->dcm_state == DCM_ENTER) &&
 		(mfd->panel.type == MIPI_CMD_PANEL))) {
 		pr_err("commit is not supported when interface is in off state\n");
-		goto end;
+		return ret;
 	}
 	pinfo = mfd->panel_info;
 
 	/* only supports version 1.0 */
 	if (commit->version != MDP_COMMIT_VERSION_1_0) {
 		pr_err("commit version is not supported\n");
-		goto end;
+		return ret;
 	}
 
 	if (!mfd->mdp.pre_commit || !mfd->mdp.atomic_validate) {
 		pr_err("commit callback is not registered\n");
-		goto end;
+		return ret;
 	}
 
 	commit_v1 = &commit->commit_v1;
 	if (commit_v1->flags & MDP_VALIDATE_LAYER) {
 		ret = mdss_fb_wait_for_kickoff(mfd);
 		if (ret) {
-			pr_err("wait for kickoff failed\n");
+			pr_err("wait for kickoff failed, ret: %d\n", ret);
 		} else {
 			__ioctl_transition_dyn_mode_state(mfd,
 				MSMFB_ATOMIC_COMMIT, true, false);
 			if (mfd->panel.type == WRITEBACK_PANEL) {
 				if (!commit_v1->output_layer) {
 					pr_err("Output layer is null\n");
-					goto end;
+					return ret;
 				}
 				output_layer = commit_v1->output_layer;
 				wb_change = !mdss_fb_is_wb_config_same(mfd,
@@ -3432,13 +3477,16 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 			ret = mfd->mdp.atomic_validate(mfd, file, commit_v1);
 			if (!ret)
 				mfd->atomic_commit_pending = true;
+			else if (wb_change)
+				mdss_fb_update_resolution(mfd, old_xres,
+							old_yres, old_format);
 		}
-		goto end;
+		return ret;
 	} else {
 		ret = mdss_fb_pan_idle(mfd);
 		if (ret) {
-			pr_err("pan display idle call failed\n");
-			goto end;
+			pr_err("pan display idle call failed, ret: %d\n", ret);
+			return ret;
 		}
 		__ioctl_transition_dyn_mode_state(mfd,
 			MSMFB_ATOMIC_COMMIT, false,
@@ -3446,8 +3494,8 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 
 		ret = mfd->mdp.pre_commit(mfd, file, commit_v1);
 		if (ret) {
-			pr_err("atomic pre commit failed\n");
-			goto end;
+			pr_err("atomic pre commit failed, ret: %d\n", ret);
+			return ret;
 		}
 	}
 
@@ -3466,9 +3514,6 @@ int mdss_fb_atomic_commit(struct fb_info *info,
 	if (wait_for_finish)
 		ret = mdss_fb_pan_idle(mfd);
 
-end:
-	if (ret && (mfd->panel.type == WRITEBACK_PANEL) && wb_change)
-		mdss_fb_update_resolution(mfd, old_xres, old_yres, old_format);
 	return ret;
 }
 

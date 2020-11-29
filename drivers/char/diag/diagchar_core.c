@@ -3173,6 +3173,12 @@ exit:
 				put_pid(pid_struct);
 				continue;
 			}
+			if (task_s == entry->client)
+				if (entry->client->tgid != current->tgid)
+					continue;
+			if (!entry->in_service)
+				continue;
+			}
 			if (task_s == entry->client) {
 				if (entry->client->tgid != current->tgid) {
 					put_task_struct(task_s);

@@ -59,8 +59,10 @@
 #define VFE_CLK_INFO_MAX 16
 #define STATS_COMP_BIT_MASK 0x1FF
 
-#define MSM_ISP_MIN_AB 100000000
-#define MSM_ISP_MIN_IB 100000000
+//ZTEMT: li.bin223 modify for increase bus frequence --start
+#define MSM_ISP_MIN_AB 450000000
+#define MSM_ISP_MIN_IB 900000000
+//ZTEMT: li.bin223 modify for increase bus frequence --end
 #define MAX_BUFFERS_IN_HW 2
 
 #define MAX_VFE 2
@@ -772,7 +774,9 @@ struct vfe_device {
 	uint32_t is_split;
 	uint32_t dual_vfe_enable;
 	unsigned long page_fault_addr;
+#if !defined(CONFIG_MACH_NUBIA_NX551J) && !defined(CONFIG_MACH_NUBIA_NX549J)
 	uint32_t vfe_hw_limit;
+#endif
 
 	/* Debug variables */
 	int dump_reg;

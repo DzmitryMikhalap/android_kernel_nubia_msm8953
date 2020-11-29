@@ -48,6 +48,12 @@ static ssize_t power_supply_show_property(struct device *dev,
 		"USB_CDP", "USB_ACA", "USB_HVDCP", "USB_HVDCP_3", "USB_PD",
 		"Wireless", "USB_FLOAT", "BMS", "Parallel", "Main", "Wipower",
 		"TYPEC", "TYPEC_UFP", "TYPEC_DFP"
+		#ifdef CONFIG_NUBIA_WEIPU_CHARGER
+		, "USB_NEOCHG"
+		#endif
+		#ifdef CONFIG_BATTERY_BQ27520
+		, "BQ_FG"
+		#endif
 	};
 	static char *status_text[] = {
 		"Unknown", "Charging", "Discharging", "Not charging", "Full"
@@ -234,6 +240,7 @@ static struct device_attribute power_supply_attrs[] = {
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),
+	POWER_SUPPLY_ATTR(charge_enabled),
 	POWER_SUPPLY_ATTR(battery_charging_enabled),
 	POWER_SUPPLY_ATTR(charging_enabled),
 	POWER_SUPPLY_ATTR(step_charging_enabled),

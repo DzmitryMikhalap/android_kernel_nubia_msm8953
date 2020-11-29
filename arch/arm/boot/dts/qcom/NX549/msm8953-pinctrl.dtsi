@@ -1,0 +1,381 @@
+/*
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		/delete-node/ cam_sensor_rear_vdig;
+
+		/delete-node/ cam_sensor_rear_vdig_sleep;
+
+		/delete-node/ pmx_adv7533_int;
+
+		/delete-node/ pmx_rd_nfc_int;
+
+		/delete-node/ pmx_nfc_reset;
+
+	/*add by chengdongsheng for nfc brcm2079x*/
+		bcm2079x_int_pin{
+			//qcom,pins = <&gp 17>;
+			pins = "gpio17";
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "bcm2079x_int_pin";
+
+			bcm2079x_int_active: active {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+
+			bcm2079x_int_suspend: suspend {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+		};
+
+		bcm2079x_en_pin{
+			//qcom,pins = <&gp 16>;
+			pins = "gpio16";
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "bcm2079x_en_pin";
+			bcm2079x_en_active: active {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			bcm2079x_en_suspend: suspend {
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		bcm2079x_ctl_pin{
+			//qcom,pins =  <&gp 87>;
+			pins = "gpio87";
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "bcm2079x_ctl_pin";
+			bcm2079x_ctl_active: active {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			bcm2079x_ctl_suspend: suspend {
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		pmx_mdss: pmx_mdss {
+			/delete-node/ mdss_dsi_gpio;
+		};
+
+		cdc-dmic-clk {
+			cdc_dmic_clk_act: dmic_clk_on {
+				mux {
+					pins = "gpio89";
+					function = "dmic0_clk";
+				};
+
+				config {
+					pins = "gpio89";
+					drive-strength = <8>;
+				};
+			};
+
+		       cdc_dmic_clk_sus: dmic_clk_off {
+				mux {
+					pins = "gpio89";
+					function = "dmic0_clk";
+				};
+
+				config {
+					pins = "gpio89";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		cdc-dmic-lines {
+			cdc_dmic_lines_act: dmic_lines_on {
+				mux {
+					pins = "gpio90";
+					function = "dmic0_data";
+				};
+
+				config {
+					pins = "gpio90";
+					drive-strength = <8>;
+				};
+			};
+
+			cdc_dmic_lines_sus: dmic_lines_off {
+				mux {
+					pins = "gpio90";
+					function = "dmic0_data";
+				};
+
+				config {
+					pins = "gpio90";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+		sec-tlmm-lines {
+			sec_tlmm_lines_act: sec_tlmm_lines_act {
+				mux {
+					pins = "gpio88", "gpio91", "gpio92", "gpio93";
+					function = "pri_mi2s";
+				};
+
+				config {
+					pins = "gpio88", "gpio91", "gpio92", "gpio93";
+					drive-strength = <8>;
+				};
+			};
+
+			sec_tlmm_lines_sus: sec_tlmm_lines_sus {
+				mux {
+					pins = "gpio88", "gpio91", "gpio92", "gpio93";
+					function = "pri_mi2s";
+				};
+
+				config {
+					pins = "gpio88", "gpio91", "gpio92", "gpio93";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		/* add pingrp for touchscreen */
+//nubia touch screen pinctrl
+		nubia_synaptics_int {
+			synaptics_int_active: synaptics_int_active {
+				mux {
+					pins = "gpio65";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio65";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+
+			synaptics_int_suspend: synaptics_int_suspend {
+				mux {
+					pins = "gpio65";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio65";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		nubia_synaptics_reset {
+			synaptics_reset_active: synaptics_reset_active {
+				mux {
+					pins = "gpio64";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio64";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+
+			synaptics_reset_suspend: synaptics_reset_suspend {
+				mux {
+					pins = "gpio64";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio64";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		nubia_synaptics_power {
+			synaptics_power_active: synaptics_power_active {
+				mux {
+					pins = "gpio139";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio139";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+
+			synaptics_power_suspend: synaptics_power_suspend {
+				mux {
+					pins = "gpio139";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio139";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+		};
+//nubia end
+
+		tlmm_gpio_key {
+			gpio_key_active: gpio_key_active {
+				mux {
+					pins = "gpio85", "gpio86";
+				};
+
+				config {
+					pins = "gpio85", "gpio86";
+				};
+			};
+
+			gpio_key_suspend: gpio_key_suspend {
+				mux {
+					pins = "gpio85", "gpio86";
+				};
+
+				config {
+					pins = "gpio85", "gpio86";
+				};
+			};
+		};
+
+		pa224_int {
+			pa224_default: pa224_default{
+				mux {
+					pins = "gpio44";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio44";
+					drive-strength = <6>;
+					bias-pull-up;
+				};
+			};
+			pa224_sleep: pa224_sleep{
+				mux {
+					pins = "gpio44";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio44";
+					drive-strength = <6>;
+					bias-high-impedance;
+				};
+			};
+		};
+		hall_device_int{
+			label = "hall_irq";
+			mux {
+				pins = "gpio46";
+				function = "gpio";
+			};
+			hall_sensor_int_default: hall_sensor_int_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+		};
+		/* used for spi6 and fingerprint added by nubia */
+/********for NX549J, lcd control this gpio*******/
+		  gf_pwr_gpio {
+				gf_pwr_active: gf_pwr_active {
+					mux{
+						pins = "gpio35";
+						function = "gpio";
+					};
+					config{
+						pins = "gpio35";
+						drive-strength = <10>;
+						bias-pull-up;
+					};
+				};
+				gf_pwr_suspend: gf_pwr_suspend {
+					mux{
+						pins = "gpio35";
+						function = "gpio";
+					};
+					config{
+						pins = "gpio35";
+						drive-strength = <10>;
+						bias-pull-up;
+					};
+				};
+			};
+			gf_int_gpio {
+			gf_int_active: gf_int_active {
+				mux{
+					pins = "gpio48";
+					function = "gpio";
+				};
+				config{
+					pins = "gpio48";
+					drive-strength = <16>;
+					bias-disable;
+				};
+			};
+			gf_int_suspend: gf_int_suspend {
+				mux{
+					pins = "gpio48";
+					function = "gpio";
+				};
+				config{
+					pins = "gpio48";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+		gf_rst_gpio {
+			gf_rst_active: gf_rst_active {
+				mux{
+					pins = "gpio47";
+					function = "gpio";
+				};
+				config{
+					pins = "gpio47";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+			};
+			gf_rst_suspend: gf_rst_suspend {
+				mux{
+					pins = "gpio47";
+					function = "gpio";
+				};
+				config{
+					pins = "gpio47";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+		/* used for spi5 and fingerprint added by nubia */
+	};
+};

@@ -1,0 +1,111 @@
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/msm/power-on.h>
+
+&spmi_bus {
+
+	qcom,pmi8950@2 {
+		pmi8950_vadc: vadc@3100 {
+/*CONFIG_ZTEMT_MSM8953_CHARGER*/
+			chan@8 {
+				label = "die_temp";
+				reg = <8>;
+				qcom,decimation = <0>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "absolute";
+				qcom,scale-function = <3>;
+				qcom,hw-settle-time = <0>;
+				qcom,fast-avg-setup = <0>;
+			};
+
+		};
+
+
+
+		pmi8950_charger: qcom,qpnp-smbcharger {
+			qcom,dc-psy-type = "Mains";
+			qcom,dc-psy-ma = <1500>;
+
+			/*ZTEMT Modify*/
+			qcom,float-voltage-mv = <4400>;
+			qcom,resume-delta-mv = <50>;
+			qcom,fastchg-current-ma = <2000>;
+			qcom,parallel-usb-min-current-ma = <1200>;
+			qcom,parallel-usb-9v-min-current-ma = <800>;
+			qcom,thermal-mitigation = <1700 900 500 0>;
+
+			/*ZTEMT Add*/
+			/*qcom,smbcharger-vadc = <&pmi8950_vadc>;*/
+			qcom,dcin-vadc = <&pmi8950_vadc>;
+			qcom,bmd-pin-src	= "bpd_thm_id";
+			qcom,charging-timeout-mins = <768>;
+			qcom,parallel-main-chg-fcc-percent = <50>;
+			qcom,ibatmax-cool-ma = <750>;
+			qcom,cool-bat-mv = <4100>;
+
+			nubia,chg-compatible-no-smb1351;
+
+			nubia,warm-using-cntl;
+			nubia,warm-using-ibatt-ma = <500>;
+			nubia,warm-using-dec = <400>;
+
+			nubia,warm-chging-ma = <250>;
+			nubia,warm-chging-mv = <4100>;
+			nubia,warm-chging-dec2 = <460>;
+			nubia,cool-chging-ma = <700>;
+
+
+		};
+
+		pmi8950_fg: qcom,fg {
+			qcom,resume-soc = <99>;
+			qcom,fg-iterm-ma = <150>;
+			qcom,resume-soc-raw = <0xfd>;
+			qcom,fg-cc-cv-threshold-mv = <4390>;
+			/*ZTEMT Add*/
+			qcom,thermal-coefficients = [EC 85 75 4A FC 35];
+			qcom,warm-bat-decidegc = <430>;		//Fixed 53Deg to 43Deg
+			qcom,cool-bat-decidegc = <80>; 	    //Fixed -5Deg to 8Deg
+			qcom,hot-bat-decidegc = <500>; 		//Fixed 55Deg to 50Deg
+			qcom,cold-bat-decidegc = <(-50)>; 	//FIxed -6Deg to -5Deg
+			qcom,irq-volt-empty-mv = <3300>;
+			qcom,fg-cutoff-voltage-mv = <3100>;
+			qcom,fg-vbat-estimate-diff-mv = <200>;
+			qcom,fg-delta-soc = <1>;
+			qcom,fg-vbatt-low-threshold = <3420>;
+			qcom,vbat-estimate-diff-mv = <200>;
+			qcom,hold-soc-while-full;
+			qcom,ext-sense-type;
+			qcom,capacity-estimation-on;
+			qcom,capacity-learning-feedback;
+		};
+
+	};
+
+	qcom,pmi8950@3 {
+		wled: qcom,leds@d800 {
+			qcom,en-cabc;
+		};
+
+		flash_led: qcom,leds@d300 {
+			pmi8950_flash0: qcom,flash_0 {
+				qcom,current = <1000>;
+			};
+
+			pmi8950_torch0: qcom,torch_0 {
+				qcom,current = <100>;
+			};
+		};
+
+	};
+};

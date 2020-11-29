@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -641,6 +641,21 @@ static struct battery_status batt_s[] = {
 	[BATT_MISSING] = {0, 0, 0, 1, 0},
 };
 
+
+#ifdef CONFIG_ZTEMT_CHARGER
+    static int debug_mask_smb135x = 1;
+    module_param_named(debug_mask_smb1351, debug_mask_smb135x, int, S_IRUSR | S_IWUSR);
+    #define DBG_CHARGE(x...) do {if (debug_mask_smb135x) pr_info(">>ztemt_chg:>>  " x); } while (0)
+    // nubia debug
+    //#undef pr_debug
+    //#define pr_debug   pr_info
+    //#undef KERN_INFO
+    //#define KERN_INFO KERN_ERR
+
+    extern int get_usb_present(void);
+#endif
+
+
 static void smb1351_stay_awake(struct smb1351_wakeup_source *source,
 					enum wakeup_src wk_src)
 {
@@ -864,7 +879,11 @@ static int smb1351_set_usb_chg_current(struct smb1351_charger *chip,
 	int i, rc = 0, icl_result_ma = 0;
 	u8 reg = 0, mask = 0;
 
-	pr_debug("USB current_ma = %d\n", current_ma);
+#ifdef CONFIG_ZTEMT_CHARGER
+        DBG_CHARGE("USB current_ma = %dmA\n", current_ma);
+#else
+        pr_debug("USB current_ma = %d\n", current_ma);
+#endif
 
 	if (chip->chg_autonomous_mode) {
 		pr_debug("Charger in autonomous mode\n");
@@ -979,6 +998,10 @@ static int smb1351_fastchg_current_set(struct smb1351_charger *chip,
 		pr_debug("is_pre_chg true, current is %d\n", fastchg_current);
 	}
 
+#ifdef CONFIG_ZTEMT_CHARGER
+      DBG_CHARGE("is_pre_chg %d, fastchg_current is %dmA\n",is_pre_chg, fastchg_current);
+#endif
+
 	if (is_pre_chg) {
 		/* set prechg current */
 		for (i = ARRAY_SIZE(pre_chg_current) - 1; i >= 0; i--) {
@@ -1031,6 +1054,9 @@ static int smb1351_fastchg_current_set(struct smb1351_charger *chip,
 		if (rc)
 			pr_err("Couldn't write VARIOUS_FUNC_2_REG rc=%d\n", rc);
 
+#ifdef CONFIG_ZTEMT_CHARGER
+		pr_err("BATT:CHG  fastchg_current=%d \n",fastchg_current);
+#endif
 		rc = smb1351_masked_write(chip, CHG_CURRENT_CTRL_REG,
 					FAST_CHG_CURRENT_MASK, i);
 		if (rc)
@@ -1055,6 +1081,9 @@ static int smb1351_float_voltage_set(struct smb1351_charger *chip,
 	}
 
 	temp = (vfloat_mv - MIN_FLOAT_MV) / VFLOAT_STEP_MV;
+#ifdef CONFIG_ZTEMT_CHARGER
+       DBG_CHARGE("reg_val : %d, vfloat_mv is %dmV\n",temp, vfloat_mv);
+#endif
 
 	return smb1351_masked_write(chip, VFLOAT_REG, VFLOAT_MASK, temp);
 }
@@ -1791,9 +1820,6 @@ static int smb1351_parallel_charger_disable_slave(
 	int rc;
 	struct power_supply *parallel_psy = smb1351_get_parallel_slave(chip);
 
-	if (!parallel_psy || !chip->parallel.slave_detected)
-		return 0;
-
 	pr_debug("Disable parallel slave!\n");
 
 	chip->parallel.total_icl_ma = 0;
@@ -2153,6 +2179,73 @@ static void smb1351_parallel_check_start(struct smb1351_charger *chip)
 	pr_debug("parallel work scheduled\n");
 }
 
+
+#define LAST_CNFG_REG	0x16
+#define FIRST_STATUS_REG	0x36
+#define LAST_STATUS_REG		0x3F
+#define FIRST_CMD_REG	0x30
+#define LAST_CMD_REG	0x34
+
+#ifdef DEBUG
+static void dump_regs(struct smb1351_charger *chip)
+{
+	int rc;
+	u8 reg;
+	u8 addr;
+
+	for (addr = 0; addr <= LAST_CNFG_REG; addr++) {
+		rc = smb1351_read_reg(chip, addr, &reg);
+		if (rc)
+			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
+		else
+			pr_err("0x%02x = 0x%02x\n", addr, reg);
+	}
+
+	for (addr = FIRST_STATUS_REG; addr <= LAST_STATUS_REG; addr++) {
+		rc = smb1351_read_reg(chip, addr, &reg);
+		if (rc)
+			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
+		else
+			pr_err("0x%02x = 0x%02x\n", addr, reg);
+	}
+
+	for (addr = FIRST_CMD_REG; addr <= LAST_CMD_REG; addr++) {
+		rc = smb1351_read_reg(chip, addr, &reg);
+		if (rc)
+			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
+		else
+			pr_err("0x%02x = 0x%02x\n", addr, reg);
+	}
+}
+#endif
+
+#ifdef CONFIG_ZTEMT_CHARGER
+struct smb1351_charger *smb_chip;
+int smb1351_config_charger_vol(void)
+{
+    int rc;
+
+    if( !smb_chip ){
+        pr_err("smb1351 is not ready\n");
+		return -1;
+	}
+
+	rc = smb1351_masked_write(smb_chip, CMD_I2C_REG, CMD_BQ_CFG_ACCESS_BIT,	CMD_BQ_CFG_ACCESS_BIT);
+	if (rc)
+		pr_err("Couldn't set reg:0x30 rc = %d\n", rc);
+
+	rc = smb1351_masked_write(smb_chip, OTG_MODE_POWER_OPTIONS_REG, BIT(7), BIT(7));
+	if (rc)
+		pr_err("Couldn't set reg:0x14 rc = %d\n", rc);
+
+	rc = smb1351_masked_write(smb_chip, FLEXCHARGER_REG, BIT(6), 0x00);
+	if (rc)
+		pr_err("Couldn't set reg:0x10 rc = %d\n", rc);
+
+	return 0;
+}
+#endif
+
 static void smb1351_init_fg_work(struct work_struct *work)
 {
 	int rc;
@@ -2411,7 +2504,11 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 		return 0;
 	}
 
-	chip->parallel_charger_present = present;
+#ifdef CONFIG_ZTEMT_CHARGER
+     //chip->parallel_charger_present = present;
+#else
+     chip->parallel_charger_present = present;
+#endif
 
 	if (present) {
 		/* Check if SMB1351 is present */
@@ -2499,6 +2596,13 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 			pr_err("Couldn't set fastchg current rc=%d\n", rc);
 			return rc;
 		}
+
+#ifdef CONFIG_ZTEMT_CHARGER
+		if(get_usb_present()==1){
+			chip->parallel_charger_present = present;
+		}
+#endif
+
 		/*
 		 * Suspend USB input (CURRENT reason) to avoid slave start
 		 * charging before any SW logic been run. USB input will be
@@ -2517,6 +2621,11 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 			return rc;
 		}
 	} else {
+
+#ifdef CONFIG_ZTEMT_CHARGER
+		chip->parallel_charger_present = present;
+#endif
+
 		rc = smb1351_usb_suspend(chip, PARALLEL, true);
 		if (rc) {
 			pr_debug("Suspend USB (PARALLEL) failed, rc=%d\n", rc);
@@ -2888,28 +2997,6 @@ static void smb1351_rerun_apsd_work(struct work_struct *work)
 	smb1351_relax(&chip->smb1351_ws, RERUN_APSD);
 }
 
-static int smb1351_notify_usb_supply_type(struct smb1351_charger *chip,
-					enum power_supply_type type)
-{
-	int rc;
-	union power_supply_propval pval = {0, };
-
-	pval.intval = type;
-	rc = chip->usb_psy->set_property(chip->usb_psy,
-			POWER_SUPPLY_PROP_REAL_TYPE, &pval);
-	if (rc < 0) {
-		if (rc == -EINVAL) {
-			rc = chip->usb_psy->set_property(chip->usb_psy,
-					POWER_SUPPLY_PROP_TYPE, &pval);
-			if (!rc)
-				return 0;
-		}
-		pr_err("notify charger type to usb_psy failed, rc=%d\n", rc);
-	}
-
-	return rc;
-}
-
 static void smb1351_hvdcp_det_work(struct work_struct *work)
 {
 	int rc;
@@ -2929,14 +3016,14 @@ static void smb1351_hvdcp_det_work(struct work_struct *work)
 	is_hvdcp = !!(reg & (HVDCP_SEL_5V | HVDCP_SEL_9V | HVDCP_SEL_12V));
 	if (is_hvdcp) {
 		pr_debug("HVDCP detected; notifying USB PSY\n");
-		smb1351_notify_usb_supply_type(chip,
-				POWER_SUPPLY_TYPE_USB_HVDCP);
+		power_supply_set_supply_type(chip->usb_psy,
+			POWER_SUPPLY_TYPE_USB_HVDCP);
 	}
 end:
 	smb1351_relax(&chip->smb1351_ws, HVDCP_DETECT);
 }
 
-#define HVDCP_NOTIFY_MS 3500
+#define HVDCP_NOTIFY_MS 2500
 static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 						u8 status)
 {
@@ -2968,24 +3055,22 @@ static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 		 * If defined force hvdcp 2p0 property,
 		 * we force to hvdcp 2p0 in the APSD handler.
 		 */
-		if (type == POWER_SUPPLY_TYPE_USB_DCP) {
-			if (chip->force_hvdcp_2p0) {
-				pr_debug("Force set to HVDCP 2.0 mode\n");
-				smb1351_masked_write(chip, VARIOUS_FUNC_3_REG,
+		if (chip->force_hvdcp_2p0) {
+			pr_debug("Force set to HVDCP 2.0 mode\n");
+			smb1351_masked_write(chip, VARIOUS_FUNC_3_REG,
 						QC_2P1_AUTH_ALGO_BIT, 0);
-				smb1351_masked_write(chip, CMD_HVDCP_REG,
+			smb1351_masked_write(chip, CMD_HVDCP_REG,
 						CMD_FORCE_HVDCP_2P0_BIT,
 						CMD_FORCE_HVDCP_2P0_BIT);
-				type = POWER_SUPPLY_TYPE_USB_HVDCP;
-			} else {
-				pr_debug("schedule hvdcp detection worker\n");
-				smb1351_stay_awake(&chip->smb1351_ws,
-							HVDCP_DETECT);
-				schedule_delayed_work(&chip->hvdcp_det_work,
+			type = POWER_SUPPLY_TYPE_USB_HVDCP;
+		} else if (type == POWER_SUPPLY_TYPE_USB_DCP) {
+			pr_debug("schedule hvdcp detection worker\n");
+			smb1351_stay_awake(&chip->smb1351_ws, HVDCP_DETECT);
+			schedule_delayed_work(&chip->hvdcp_det_work,
 					msecs_to_jiffies(HVDCP_NOTIFY_MS));
-			}
 		}
-		smb1351_notify_usb_supply_type(chip, type);
+
+		power_supply_set_supply_type(chip->usb_psy, type);
 		/*
 		 * SMB is now done sampling the D+/D- lines,
 		 * indicate USB driver
@@ -3037,7 +3122,8 @@ static void smb1351_chg_remove_work(struct work_struct *work)
 			pr_debug("set parallel charger un-present!\n");
 			power_supply_set_present(parallel_psy, false);
 		}
-		smb1351_notify_usb_supply_type(chip, POWER_SUPPLY_TYPE_UNKNOWN);
+		power_supply_set_supply_type(chip->usb_psy,
+						POWER_SUPPLY_TYPE_UNKNOWN);
 		power_supply_set_present(chip->usb_psy,
 						chip->chg_present);
 		pr_debug("Set usb psy dp=r dm=r\n");
@@ -3078,8 +3164,8 @@ static int smb1351_usbin_uv_handler(struct smb1351_charger *chip, u8 status)
 			chip->chg_present = true;
 			pr_debug("updating usb_psy present=%d\n",
 						chip->chg_present);
-			smb1351_notify_usb_supply_type(chip,
-					POWER_SUPPLY_TYPE_USB);
+			power_supply_set_supply_type(chip->usb_psy,
+						POWER_SUPPLY_TYPE_USB);
 			power_supply_set_present(chip->usb_psy,
 						chip->chg_present);
 			/* set parallel slave PRESENT */
@@ -3096,8 +3182,8 @@ static int smb1351_usbin_uv_handler(struct smb1351_charger *chip, u8 status)
 			/* clear parallel slave PRESENT */
 			if (parallel_psy && chip->parallel.slave_detected)
 				power_supply_set_present(parallel_psy, false);
-			smb1351_notify_usb_supply_type(chip,
-					POWER_SUPPLY_TYPE_UNKNOWN);
+			power_supply_set_supply_type(chip->usb_psy,
+						POWER_SUPPLY_TYPE_UNKNOWN);
 			power_supply_set_present(chip->usb_psy,
 						chip->chg_present);
 			pr_debug("updating usb_psy present=%d\n",
@@ -3148,7 +3234,8 @@ static int smb1351_usbin_ov_handler(struct smb1351_charger *chip, u8 status)
 		/* clear parallel slave PRESENT */
 		if (parallel_psy && chip->parallel.slave_detected)
 			power_supply_set_present(parallel_psy, false);
-		smb1351_notify_usb_supply_type(chip, POWER_SUPPLY_TYPE_UNKNOWN);
+		power_supply_set_supply_type(chip->usb_psy,
+						POWER_SUPPLY_TYPE_UNKNOWN);
 		power_supply_set_present(chip->usb_psy, chip->chg_present);
 	} else {
 		chip->usbin_ov = false;
@@ -3669,19 +3756,11 @@ static int smb1351_update_usb_supply_icl(struct smb1351_charger *chip)
 	union power_supply_propval pval = {0, };
 
 	rc = chip->usb_psy->get_property(chip->usb_psy,
-			POWER_SUPPLY_PROP_REAL_TYPE, &pval);
-	if (rc == -EINVAL) {
-		rc = chip->usb_psy->get_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_TYPE, &pval);
-		if (rc < 0) {
-			pr_err("Get USB supply TYPE failed, rc=%d\n", rc);
-			return rc;
-		}
-	} else if (rc < 0) {
-		pr_err("Get USB supply REAL_TYPE failed, rc=%d\n", rc);
+			POWER_SUPPLY_PROP_TYPE, &pval);
+	if (rc) {
+		pr_err("Get USB supply type failed, rc=%d\n", rc);
 		return rc;
 	}
-
 	type = pval.intval;
 	chip->usb_psy_type = type;
 	rc = chip->usb_psy->get_property(chip->usb_psy,
@@ -3947,7 +4026,7 @@ static void smb1351_external_power_changed(struct power_supply *psy)
 	pr_debug("updating batt psy\n");
 }
 
-#define LAST_CNFG_REG	0x16
+
 static int show_cnfg_regs(struct seq_file *m, void *data)
 {
 	struct smb1351_charger *chip = m->private;
@@ -3979,8 +4058,7 @@ static const struct file_operations cnfg_debugfs_ops = {
 	.release	= single_release,
 };
 
-#define FIRST_CMD_REG	0x30
-#define LAST_CMD_REG	0x34
+
 static int show_cmd_regs(struct seq_file *m, void *data)
 {
 	struct smb1351_charger *chip = m->private;
@@ -4012,8 +4090,6 @@ static const struct file_operations cmd_debugfs_ops = {
 	.release	= single_release,
 };
 
-#define FIRST_STATUS_REG	0x36
-#define LAST_STATUS_REG		0x3F
 static int show_status_regs(struct seq_file *m, void *data)
 {
 	struct smb1351_charger *chip = m->private;
@@ -4123,42 +4199,6 @@ static int force_irq_set(void *data, u64 val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(force_irq_ops, NULL, force_irq_set, "0x%02llx\n");
 
-#ifdef DEBUG
-static void dump_regs(struct smb1351_charger *chip)
-{
-	int rc;
-	u8 reg;
-	u8 addr;
-
-	for (addr = 0; addr <= LAST_CNFG_REG; addr++) {
-		rc = smb1351_read_reg(chip, addr, &reg);
-		if (rc)
-			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
-		else
-			pr_debug("0x%02x = 0x%02x\n", addr, reg);
-	}
-
-	for (addr = FIRST_STATUS_REG; addr <= LAST_STATUS_REG; addr++) {
-		rc = smb1351_read_reg(chip, addr, &reg);
-		if (rc)
-			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
-		else
-			pr_debug("0x%02x = 0x%02x\n", addr, reg);
-	}
-
-	for (addr = FIRST_CMD_REG; addr <= LAST_CMD_REG; addr++) {
-		rc = smb1351_read_reg(chip, addr, &reg);
-		if (rc)
-			pr_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
-		else
-			pr_debug("0x%02x = 0x%02x\n", addr, reg);
-	}
-}
-#else
-static void dump_regs(struct smb1351_charger *chip)
-{
-}
-#endif
 
 #define MAIN_CHG_DEFAULT_FCC_PERCENT	50
 #define MAIN_CHG_DEFAULT_ICL_PERCENT	50
@@ -4576,8 +4616,6 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&chip->iterm_check_soc_work,
 					smb1351_iterm_check_soc_work);
 
-	dump_regs(chip);
-
 	rc = smb1351_regulator_init(chip);
 	if (rc) {
 		pr_err("Couldn't initialize smb1351 ragulator rc=%d\n", rc);
@@ -4618,7 +4656,7 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 			chip->adc_param.low_temp = chip->batt_cool_decidegc;
 			chip->adc_param.high_temp = chip->batt_warm_decidegc;
 		}
-		chip->adc_param.timer_interval = ADC_MEAS1_INTERVAL_500MS;
+		chip->adc_param.timer_interval = ADC_MEAS2_INTERVAL_1S;
 		chip->adc_param.state_request = ADC_TM_WARM_COOL_THR_ENABLE;
 		chip->adc_param.btm_ctx = chip;
 		chip->adc_param.threshold_notification =
@@ -4634,8 +4672,6 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 	}
 
 	create_debugfs_entries(chip);
-
-	dump_regs(chip);
 
 	pr_info("smb1351 successfully probed. charger=%d, batt=%d version=%s\n",
 			chip->chg_present,
@@ -4687,7 +4723,11 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 	rc = of_property_read_u32(node, "qcom,parallel-en-pin-polarity",
 					&chip->parallel_pin_polarity_setting);
 	if (rc)
+#ifdef CONFIG_ZTEMT_CHARGER
+		chip->parallel_pin_polarity_setting = EN_BY_PIN_HIGH_ENABLE;
+#else
 		chip->parallel_pin_polarity_setting = EN_BY_PIN_LOW_ENABLE;
+#endif
 	else
 		chip->parallel_pin_polarity_setting =
 				chip->parallel_pin_polarity_setting ?
@@ -4696,7 +4736,7 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, chip);
 	mutex_init(&chip->parallel_config_lock);
 
-	chip->parallel_psy.name		= "parallel";
+	chip->parallel_psy.name		= "usb-parallel";
 	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_PARALLEL;
 	chip->parallel_psy.get_property	= smb1351_parallel_get_property;
 	chip->parallel_psy.set_property	= smb1351_parallel_set_property;
@@ -4718,6 +4758,9 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 
 	chip->resume_completed = true;
 	create_debugfs_entries(chip);
+#ifdef CONFIG_ZTEMT_CHARGER
+	smb_chip = chip;
+#endif
 
 	pr_info("smb1351 parallel successfully probed.\n");
 
